@@ -862,7 +862,7 @@ function page(){
   const latest=ledger.records.find(r=>r.id===selectedRecord)||ledger.records[0];
   if(view==="receipts"){
     const due=pending().map(r=>'<div class="lt-claim">'
-    +'<span>'+escapeText(r.name)+' · '+escapeText(r.serial)+'<br><b>待兑奖 '+r.prize+' '+unit()</b></span>'
+    +'<span>'+escapeText(r.name)+' · '+escapeText(r.serial)+'<br><b>待兑奖 '+r.prize+' '+unit()+'</b></span>'
       +'<button type="button" data-lt-redeem="'+escapeText(r.id)+'">确认兑奖</button></div>').join("");
     const history=ledger.records.map(r=>'<button type="button" class="lt-history" data-lt-view="'+escapeText(r.id)+'">'
       +'<span>'+escapeText(r.name)+' <small>'+escapeText(r.serial)+'</small></span>'
