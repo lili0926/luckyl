@@ -1,6 +1,6 @@
 # luckyl
 
-可嵌入聊天应用的虚拟刮刮乐模块，包含六款票的货架、刮开区、独立玩法、票根、钱包扣款与兑奖。票面奖金使用宿主应用提供的虚拟货币，不连接真实彩票销售或兑奖；概率是本项目的模拟设定，并非官方彩票概率。
+可嵌入应用的虚拟刮刮乐模块，包含六款票的货架、刮开区、独立玩法、票根、钱包扣款与兑奖。票面奖金使用宿主应用提供的虚拟货币，不连接真实彩票销售或兑奖；概率是本项目的模拟设定，并非官方彩票概率。
 
 ## 六款现票
 
@@ -37,5 +37,5 @@ const PAYOUT = {
 node frontend/tests/lucky_ticket.test.cjs
 ```
 
-模块通过全局 `LuckyTicket` 接入宿主页面，使用宿主提供的 `state`、`render`、`subHeader`、`ensureWallet`、`walletUnit`、`walletEntry`、`walletSave`、聊天请求函数和 `localStorage`。购票与票根随钱包一起持久化；旧版独立存储的票根会在首次操作时迁入钱包。钱包流水的角色标识是 `player` 和 `operator`，接入时可映射为自己的角色。默认存储键为 `luckyl-ticket-v1`。单独打开脚本文件不是完整应用。
+模块通过全局 `LuckyTicket` 接入宿主页面，使用宿主提供的 `state`、`render`、`subHeader`、`ensureWallet`、`walletUnit`、`walletEntry`、`walletSave` 和 `localStorage`。购票与票根随钱包一起持久化；旧版独立存储的票根会在首次操作时迁入钱包。钱包流水的角色标识是 `player` 和 `operator`，接入时可映射为自己的角色。默认存储键为 `luckyl-ticket-v1`。本仓库不包含把刮完的票面发进聊天的卡片或自动续聊；票面和结果在票根册查看。单独打开脚本文件不是完整应用。
 
