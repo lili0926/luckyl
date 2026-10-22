@@ -25,6 +25,22 @@ const PAYOUT = {
 
 当前配置下，每张票独立抽奖：1% 中 500、69% 中普通奖金、30% 未中奖。没有固定每日次数；购买仍受钱包余额、现货和每轮最多一张的限制。中奖金额由实际刮开的格子按该款票的规则计算，不能脱离票面单独改结果。
 
+## 接入已有前端
+
+这是一份嵌入式模块，不要求另建钱包或 App。先让宿主提供以下接口，再加载 `frontend/parts/27_lucky_ticket.js`，在彩票路由渲染 `LuckyTicket.page()`：
+
+| 宿主接口 | 模块需要的行为 |
+| --- | --- |
+| `ensureWallet()` | 返回同一个钱包对象，至少有整数 `balance`；模块会在其上保存 `luckyTickets`。 |
+| `walletEntry(amount, note, by)` | 同步更新余额并持久化整个钱包；负数是购票，正数是兑奖。写入失败应抛错，模块才能撤回本次购票或兑奖。 |
+| `walletSave()` | 同步保存整个钱包，包括 `luckyTickets`；不能只保存余额。 |
+| `walletUnit()` | 返回虚拟货币的显示名。 |
+| `state`、`render()`、`subHeader(title)` | 提供页面状态、重绘函数和返回 HTML 的页头函数；打开彩票页时设置 `state.subPage = "lottery"`。 |
+
+页面需要 `document` 和一个 `#app` 容器。模块会自动加载相对于页面的 `doodle/lottery.css`；如果宿主把 CSS 放在别处，调整源码底部的 `link.href`。`showToast()` 和 `postAppEvent()` 可选。旧版票据只在迁移时读取 `localStorage`，新票据跟随钱包保存。
+
+宿主可调用 `LuckyTicket.stock()` 显示现货，调用 `LuckyTicket.buy(gameId, serial, agent, requestId)` 购票，调用 `LuckyTicket.redeem(recordId)` 兑奖；购票结果是 `{ok, record}` 或 `{ok:false, reason}`。`serial` 可留空以取该款第一张现票；`requestId` 建议使用一次操作一个唯一值，以免重复扣款。默认货架不替宿主创建购买按钮；聊天应用也可用 `LuckyTicket.handle()` 解析购票标记。本仓库只在票根册展示刮开的票面，不把它发到聊天，也不自动续聊。
+
 ## 文件与验证
 
 - `frontend/parts/27_lucky_ticket.js`：票型、概率、结算、状态和交互。
@@ -37,5 +53,5 @@ const PAYOUT = {
 node frontend/tests/lucky_ticket.test.cjs
 ```
 
-模块通过全局 `LuckyTicket` 接入宿主页面，使用宿主提供的 `state`、`render`、`subHeader`、`ensureWallet`、`walletUnit`、`walletEntry`、`walletSave` 和 `localStorage`。购票与票根随钱包一起持久化；旧版独立存储的票根会在首次操作时迁入钱包。钱包流水的角色标识是 `player` 和 `operator`，接入时可映射为自己的角色。默认存储键为 `luckyl-ticket-v1`。本仓库不包含把刮完的票面发进聊天的卡片或自动续聊；票面和结果在票根册查看。单独打开脚本文件不是完整应用。
+钱包流水的角色标识是 `player` 和 `operator`，接入时可映射为自己的角色。默认旧版存储键为 `luckyl-ticket-v1`。单独打开脚本文件不是完整应用。
 
