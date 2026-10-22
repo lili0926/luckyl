@@ -1,40 +1,55 @@
 # luckyl
 
-可嵌入聊天应用的虚拟刮刮乐模块，包含六款票的货架、刮开区、独立玩法、票根、钱包扣款与兑奖。票面奖金使用宿主应用提供的虚拟货币，不连接真实彩票销售或兑奖；概率是本项目的模拟设定，并非官方彩票概率。
+可嵌入聊天应用的**虚拟刮刮乐**模块：货架选票、刮开、票根、钱包扣款与兑奖。
 
-## 六款现票
+> 使用宿主提供的**虚拟货币**，不连接真实彩票销售或兑奖。概率为项目内模拟设定，**不是**官方彩票概率。
 
-砸彩蛋、幸运日、中国红、喜相逢、十倍幸运、大 7。每款有自己的刮开格数和判奖规则。未上架的旧票型代码仅用于读取既有票根。
+## 快速预览
 
-## 自己调整爆率和金额
+需要 Node.js 18+，无额外依赖：
 
-打开 [`frontend/parts/27_lucky_ticket.js`](frontend/parts/27_lucky_ticket.js) 顶部的 `PAYOUT`：
-
-```js
-const PAYOUT = {
-  jackpotRate: 0.01,       // 500 虚拟货币大奖的概率：1%
-  regularRate: 0.45,       // 普通中奖概率：45%；其余 54% 未中奖
-  jackpot: 500,            // 单张新票最高奖
-  lowPricePrizes: [5, 5, 10, 10, 20, 20],
-  highPricePrizes: [10, 20, 20, 30, 40, 50, 60],
-  dayLuckyPrize: 60,
-};
+```sh
+node serve.cjs
 ```
 
-重复的金额代表更高权重。例如低价票的 `5` 出现两次，抽到它的机会就是只出现一次的金额的两倍。票价在 `GAMES` 中设置：10 及以下使用 `lowPricePrizes`，更高票价使用 `highPricePrizes`。调整时让 `jackpotRate + regularRate ≤ 1`，奖金保持非负整数；`幸运日`的幸运图符金额应包含在高价档位中。其余概率自然是未中奖概率。最高奖改动后，六款现票显示的上限会一起更新。
+打开 http://127.0.0.1:4346/ （可用 `PORT` 改端口）。
 
-当前配置下，每张票独立抽奖：1% 中 500、45% 中普通奖金、54% 未中奖。没有固定每日次数；购买仍受钱包余额、现货和每轮最多一张的限制。中奖金额由实际刮开的格子按该款票的规则计算，不能脱离票面单独改结果。
+预览自带假钱包，默认货币为「积分」，可加余额、清空票根。
 
-## 文件与验证
+## 接入宿主
 
-- `frontend/parts/27_lucky_ticket.js`：票型、概率、结算、状态和交互。
-- `frontend/doodle/lottery.css`：货架与票面样式。
-- `frontend/tests/lucky_ticket.test.cjs`：六款票的规则、概率边界和兑奖测试。
+加载：
 
-需要 Node.js，无需安装依赖：
+1. `frontend/doodle/lottery.css`
+2. `frontend/parts/27_lucky_ticket.js`
+
+宿主需提供：
+
+| 接口 | 作用 |
+|------|------|
+| `state` | 页面状态（模块使用 `subPage: "lottery"` 等） |
+| `render()` | 刷新 UI |
+| `ensureWallet()` | `{ balance }` |
+| `walletUnit()` | 货币显示名（积分 / 金币 / 小鱼干…） |
+| `walletEntry(n)` | 增减余额，不足时抛错 |
+| `showToast?(msg)` | 可选 |
+| `subHeader?()` | 可选顶栏 |
+| `buildMainChatRequest` / `callOneAgentReply` | 可选，刮开旁白 |
+
+全局对象：**`LuckyTicket`**。存储键默认 `luckyl-ticket-v1`。流水角色：`player` / `operator`。
+
+票面文案里的「小鱼干」是占位符，展示时会替换成 `walletUnit()` 的返回值。
+
+## 调爆率
+
+见 `frontend/parts/27_lucky_ticket.js` 顶部 `PAYOUT`。保持 `jackpotRate + regularRate ≤ 1`。
+
+## 测试
 
 ```sh
 node frontend/tests/lucky_ticket.test.cjs
 ```
 
-模块通过全局 `LuckyTicket` 接入宿主页面，使用宿主提供的 `state`、`render`、`subHeader`、`ensureWallet`、`walletUnit`、`walletEntry`、聊天请求函数和 `localStorage`。钱包流水的角色标识是 `player` 和 `operator`，接入时可映射为自己的角色。默认存储键为 `luckyl-ticket-v1`。单独打开脚本文件不是完整应用。
+## 分享说明
+
+适合作为**可嵌入模块**源码分享，不是独立上架的完整 App。公开时请保留「虚拟娱乐、非真实彩票」说明。
