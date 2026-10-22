@@ -780,7 +780,7 @@ function chatCardHtml(recordId,clickable){
   const record=ledger.records.find(r=>r.id===recordId);
   if(!record) return "";
   const revealed=record.narrated!==false;
-  const status=!revealed ? "正在读票" : record.prize ? "中奖 "+record.prize+" 小鱼干 · "+(record.status==="redeemed"?"已入账":"待兑奖") : "未中奖";
+  const status=!revealed ? "正在读票" : record.prize ? "中奖 "+record.prize+" "+unit()+" · "+(record.status==="redeemed"?"已入账":"待兑奖") : "未中奖";
   return '<div class="lt-chat-card"><strong>票号 '+escapeText(record.serial)+' · '+escapeText(record.name)+'</strong><span>'+status+'</span>'
     +'<details><summary>翻开刮开的票面</summary>'+ticketHtml(record,!revealed)+'</details>'
     +(clickable && revealed && record.status==="pending"?'<button type="button" data-lt-redeem="'+escapeText(record.id)+'">确认兑奖</button>':"")
