@@ -10,6 +10,12 @@
 
 砸彩蛋、幸运日、中国红、喜相逢、十倍幸运、大 7。每款有自己的刮开格数和判奖规则。未上架的旧票型代码仅用于读取既有票根。
 
+已刮开的票面示例（金额为宿主应用的虚拟货币，实际结果每张不同）：
+
+| 大 7 | 十倍幸运 |
+| --- | --- |
+| <img src="docs/screenshots/big7.jpg" width="320" alt="大 7 已刮开票面示例"> | <img src="docs/screenshots/tenfold.jpg" width="320" alt="十倍幸运已刮开票面示例"> |
+
 ## 自己调整爆率和金额
 
 打开 [`frontend/parts/27_lucky_ticket.js`](frontend/parts/27_lucky_ticket.js) 顶部的 `PAYOUT`：
