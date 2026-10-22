@@ -4,9 +4,9 @@ const vm = require('node:vm');
 const store = new Map(), wallet = {balance:1000,ledger:[]};
 let walletDisk='', failWalletSave=false;
 let now='2026-10-21T04:00:00Z', seed=6917;
-let forcedRoll=null;
+let forcedRoll=null, forcedTail=[];
 const random=()=>forcedRoll===null
-  ? ((seed=(seed*1664525+1013904223)>>>0)/4294967296)
+  ? (forcedTail.length ? forcedTail.shift() : ((seed=(seed*1664525+1013904223)>>>0)/4294967296))
   : ((value)=>{forcedRoll=null;return value;})(forcedRoll);
 class TestDate extends Date {
   constructor(...args){ super(...(args.length?args:[now])); }
@@ -28,17 +28,22 @@ const specs=[
   ['egg',15,'砸彩蛋'],['day',31,'幸运日'],['chineseRed',20,'中国红'],
   ['reunion',25,'喜相逢'],['tenfold',10,'十倍幸运'],['big7',20,'大7'],
 ];
-function expected(record){
+function cellPrizes(record){
   const f=record.face, sum=f.items.reduce((a,v)=>a+v.amount,0);
-  return f.items.reduce((total,v)=>{
-    if(record.gameId==='egg'||record.gameId==='day') return total+v.amount;
-    if(record.gameId==='reunion') return total+v.amount*(v.label==='喜'?1:v.label==='囍'?2:0);
-    if(record.gameId==='big7') return total+v.amount*(v.label==='7'?1:v.label==='77'?2:v.label==='777'?3:0);
-    if(record.gameId==='chineseRed') return total+(f.winningNumbers.includes(v.label)?v.amount:
-      v.label==='红'?v.amount*2:v.label==='灯笼'?v.amount*5:v.label==='中国结'?sum:0);
-    if(record.gameId==='tenfold') return total+(v.numbers.includes('双鱼')?v.amount*10:
-      v.numbers.includes(f.winningNumber)?v.amount:0);
-  },f.lucky?.amount||0);
+  const cells=f.items.map(v=>{
+    if(record.gameId==='egg'||record.gameId==='day') return v.amount;
+    if(record.gameId==='reunion') return v.amount*(v.label==='喜'?1:v.label==='囍'?2:0);
+    if(record.gameId==='big7') return v.amount*(v.label==='7'?1:v.label==='77'?2:v.label==='777'?3:0);
+    if(record.gameId==='chineseRed') return f.winningNumbers.includes(v.label)?v.amount:
+      v.label==='红'?v.amount*2:v.label==='灯笼'?v.amount*5:v.label==='中国结'?sum:0;
+    if(record.gameId==='tenfold') return v.numbers.includes('双鱼')?v.amount*10:
+      v.numbers.includes(f.winningNumber)?v.amount:0;
+  });
+  if(f.lucky) cells.push(f.lucky.amount);
+  return cells;
+}
+function expected(record){
+  return cellPrizes(record).reduce((sum,prize)=>sum+prize,0);
 }
 async function run(){
   assert.equal(t.stock().length,24,'only six reference games are stocked');
@@ -61,7 +66,8 @@ async function run(){
     assert.equal(r.name,name);
     assert.equal(r.face.items.length,count);
     assert.equal(r.prize,expected(r),'payout must match revealed cells and this game\'s rules');
-    assert.ok(r.prize<=available.game.maxPrize);
+    assert.ok(cellPrizes(r).every(prize=>prize<=available.game.maxPrize));
+    assert.ok(cellPrizes(r).filter(prize=>prize===500).length<=1);
     assert.equal(typeof t.chatCardHtml,'undefined');
     assert.equal(typeof t.autoNarrate,'undefined');
     if(r.prize){
@@ -80,7 +86,8 @@ async function run(){
     const bought=t.buy(ticket.game.id,ticket.serial,{id:'a1'},'extra-'+ticket.id);
     assert.equal(bought.ok,true);
     assert.equal(bought.record.prize,expected(bought.record),'all remaining stock follows its printed rule');
-    assert.ok(bought.record.prize<=ticket.game.maxPrize);
+    assert.ok(cellPrizes(bought.record).every(prize=>prize<=ticket.game.maxPrize));
+    assert.ok(cellPrizes(bought.record).filter(prize=>prize===500).length<=1);
   }
   assert.equal(t.stock().length,0);
   assert.equal(JSON.parse(walletDisk).luckyTickets.records.length,24,'tickets survive without localStorage writes');
@@ -95,17 +102,25 @@ async function run(){
   for(const [id] of specs){
     assert.equal(t.restock(id),true);
     assert.match(t.prompt(),/想抽的时候可以自己决定/);
-    for(const [roll,prize] of [[0.009,500],[0.01,'ordinary'],[0.699,'ordinary'],[0.70,0]]){
+    for(const [roll,prize] of [[0.009,'jackpot'],[0.01,'ordinary'],[0.699,'ordinary'],[0.70,0]]){
       forcedRoll=roll;
+      if(prize==='jackpot') forcedTail=[0.1,0.9];
       const bought=t.buy(id,'',{id:'a1'},'odds-'+id+'-'+roll);
       assert.equal(bought.ok,true);
       const record=bought.record;
       assert.equal(record.prize,expected(record),'the printed ticket determines the payout');
-      assert.ok(record.prize<=500,'all new tickets cap at 500 fish');
-      if(prize==='ordinary') assert.ok(record.prize>0 && record.prize<500);
+      const awards=cellPrizes(record).filter(Boolean);
+      assert.ok(awards.every(amount=>amount<=500),'each prize caps at 500 fish');
+      assert.ok(awards.filter(amount=>amount===500).length<=1,'only one 500 prize per ticket');
+      if(prize==='jackpot'){
+        assert.equal(awards.filter(amount=>amount===500).length,1);
+        assert.ok(record.prize>500,'other winning cells add to the single 500 prize');
+      }
+      else if(prize==='ordinary') assert.ok(record.prize>0 && awards.every(amount=>amount<500));
       else assert.equal(record.prize,prize);
     }
   }
+  assert.ok(t.snapshot().records.some(r=>r.face && r.winCells.length>1),'some winning tickets reveal multiple prizes');
   const oldStore=new Map([['luckyl-ticket-v1',JSON.stringify({batches:{},sold:[],records:[{id:'old-ticket',gameId:'egg',prize:0,status:'lost'}],processed:[]})]]);
   const oldWallet={balance:100,ledger:[]};
   const migrated={...context,localStorage:{getItem:k=>oldStore.get(k)||null},ensureWallet:()=>oldWallet,
@@ -117,4 +132,3 @@ async function run(){
   console.log('six distinct ticket layouts, rules, payout, private chat separation and redemption passed');
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});
-
