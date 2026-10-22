@@ -1,7 +1,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const store = new Map(), wallet = {balance:1000};
+const store = new Map(), wallet = {balance:1000,ledger:[]};
+let walletDisk='', failWalletSave=false;
 let now='2026-10-21T04:00:00Z', seed=6917;
 let forcedRoll=null;
 const random=()=>forcedRoll===null
@@ -13,10 +14,11 @@ class TestDate extends Date {
 }
 const document = {addEventListener(){},getElementById(){return null;},createElement(){return {};},head:{appendChild(){}}};
 const context = {
-  localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)},
+  localStorage:{getItem:k=>store.get(k)||null,setItem:()=>{throw Object.assign(Error('quota'),{name:'QuotaExceededError'});}},
   document,window:{},state:{subPage:'lottery',chatLoading:false,agents:[{id:'a1'}]},render(){},showToast(){},
   ensureWallet:()=>wallet,walletUnit:()=> '小鱼干',
-  walletEntry:n=>{wallet.balance+=n;if(wallet.balance<0)throw Error('negative wallet');},
+  walletSave:()=>{if(failWalletSave)throw Error('wallet save failed');walletDisk=JSON.stringify(wallet);},
+  walletEntry:(n,note)=>{wallet.balance+=n;wallet.ledger.unshift({amount:n,note});context.walletSave();},
   postAppEvent(){},subHeader:()=>'<header></header>',setTimeout,Date:TestDate,
   Math:Object.assign(Object.create(Math),{random}),
   buildMainChatRequest(_agent,hint){context.lastScratchHint=hint;return {apiMsgs:[],sys:hint};},
@@ -42,6 +44,13 @@ function expected(record){
 }
 async function run(){
   assert.equal(t.stock().length,24,'only six reference games are stocked');
+  failWalletSave=true;
+  const failed=t.buy('egg','',{id:'a1'},'failed-save');
+  failWalletSave=false;
+  assert.equal(failed.ok,false);
+  assert.equal(wallet.balance,1000,'a failed wallet write must not charge the player');
+  assert.equal(wallet.ledger.length,0);
+  assert.equal(t.stock().length,24,'a failed wallet write must not sell the ticket');
   assert.equal(t.stock().filter((v,i,a)=>a.findIndex(x=>x.game.id===v.game.id)===i).map(x=>x.game.id).join(','),specs.map(x=>x[0]).join(','));
   assert.match(t.page(),/左右滑动 · 6 款/);
   assert.equal((t.page().match(/class="lt-cover"/g)||[]).length,6);
@@ -86,13 +95,19 @@ async function run(){
     assert.ok(bought.record.prize<=ticket.game.maxPrize);
   }
   assert.equal(t.stock().length,0);
+  assert.equal(JSON.parse(walletDisk).luckyTickets.records.length,24,'tickets survive without localStorage writes');
+  const restoredWallet=JSON.parse(walletDisk);
+  const reloaded={...context,state:{...context.state,wallet:restoredWallet},ensureWallet:()=>restoredWallet,
+    walletEntry:(n,note)=>{restoredWallet.balance+=n;restoredWallet.ledger.unshift({amount:n,note});}};
+  vm.runInNewContext(fs.readFileSync(__dirname+'/../parts/27_lucky_ticket.js','utf8')+'\nthis.ticket=LuckyTicket;',reloaded);
+  assert.equal(reloaded.ticket.snapshot().records.length,24,'tickets reload from persisted wallet');
   now='2026-10-22T04:00:00Z';
   assert.equal(t.dailyLimit(),Infinity);
   wallet.balance=10000;
   for(const [id] of specs){
     assert.equal(t.restock(id),true);
     assert.match(t.prompt(),/想抽的时候可以自己决定/);
-    for(const [roll,prize] of [[0.009,500],[0.01,'ordinary'],[0.46,0],[0.9,0]]){
+    for(const [roll,prize] of [[0.009,500],[0.01,'ordinary'],[0.699,'ordinary'],[0.70,0]]){
       forcedRoll=roll;
       const bought=t.buy(id,'',{id:'a1'},'odds-'+id+'-'+roll);
       assert.equal(bought.ok,true);
@@ -106,3 +121,4 @@ async function run(){
   console.log('six distinct ticket layouts, rules, payout, narration and redemption passed');
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});
+
