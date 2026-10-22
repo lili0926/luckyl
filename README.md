@@ -4,6 +4,20 @@
 
 > 使用宿主提供的**虚拟货币**，不连接真实彩票销售或兑奖。概率为项目内模拟设定，**不是**官方彩票概率。
 
+## 票面预览
+
+嵌入宿主后的真实票面效果（货币显示名由宿主的 `walletUnit()` 决定，下图为「小鱼干」）：
+
+**十倍幸运** — 十局对号码 · 双鱼十倍
+
+![十倍幸运票面](docs/screenshots/tenfold.jpg)
+
+**大 7** — 7 中奖 · 77 双倍 · 777 三倍
+
+![大7票面](docs/screenshots/big7.jpg)
+
+其余四款（砸彩蛋、幸运日、中国红、喜相逢）同属这一套视觉：顶栏票种 / 价格、中部刮开区、底栏票号与结算。
+
 ## 接入宿主
 
 加载：
@@ -32,6 +46,17 @@
 
 编辑 `frontend/parts/27_lucky_ticket.js` 顶部 `PAYOUT`。保持 `jackpotRate + regularRate ≤ 1`。
 
+## 自定义票面
+
+> **TODO（欢迎 PR）** — 目前票种、配色、格数和判奖写在 `GAMES` / `LEGACY_GAMES` 与 `lottery.css` 里，改一款要动 JS + CSS。计划中的方向：
+
+- [ ] 把单票的 **标题 / 副标题 / 主色 / 格布局 / 规则文案** 收成一份票面配置（JSON 或纯对象）
+- [ ] CSS 用 CSS 变量（如 `--lt-ticket-accent`）按票种覆盖，减少硬编码
+- [ ] 文档示例：从零加一款「只改配置、不改结算引擎」的新票
+- [ ] 可选：更精致的刮开动效与未刮层材质（当前以清晰可读为先）
+
+在此之前，自定义路径仍是：复制现有 `GAMES` 里一款 → 改 `id/name/price/rules` 与对应 CSS 类 → 跑 `node frontend/tests/lucky_ticket.test.cjs`。
+
 ## 测试
 
 ```sh
@@ -43,6 +68,7 @@ node frontend/tests/lucky_ticket.test.cjs
 - `frontend/parts/27_lucky_ticket.js` — 逻辑
 - `frontend/doodle/lottery.css` — 样式
 - `frontend/tests/lucky_ticket.test.cjs` — 规则与概率测试
+- `docs/screenshots/` — 票面预览图
 
 ## 分享说明
 
