@@ -385,12 +385,26 @@ const RULES = {
 const randomNumber = (max) => Math.floor(Math.random()*max);
 const number = () => String(randomNumber(49)+1).padStart(2,"0");
 const smallPrize = () => [5,5,10,10,10,20,20,30][randomNumber(8)];
-function drawPrize(game){
+function drawPrizes(game){
   const roll=Math.random();
-  if(roll<PAYOUT.jackpotRate) return PAYOUT.jackpot;
-  if(roll>=PAYOUT.jackpotRate+PAYOUT.regularRate) return 0;
+  if(roll>=PAYOUT.jackpotRate+PAYOUT.regularRate) return [];
   const prizes=game.price<=10 ? PAYOUT.lowPricePrizes : PAYOUT.highPricePrizes;
-  return prizes[randomNumber(prizes.length)];
+  const regular=prizes.filter(n=>Number.isInteger(n) && n>0 && n<PAYOUT.jackpot);
+  const awards=roll<PAYOUT.jackpotRate ? [PAYOUT.jackpot] : [regular[randomNumber(regular.length)]];
+  if(regular.length && Math.random()<0.65){
+    const extras=1+(Math.random()<0.3?1:0);
+    for(let i=0;i<extras;i++) awards.push(regular[randomNumber(regular.length)]);
+  }
+  return awards;
+}
+function placeAwards(game,awards){
+  const placed=new Map();
+  for(const award of awards){
+    let index=randomNumber(game.chances);
+    while(placed.has(index)) index=randomNumber(game.chances);
+    placed.set(index,award);
+  }
+  return placed;
 }
 function ruleLines(game){
   switch(game.id){
@@ -398,29 +412,29 @@ function ruleLines(game){
     case "day": return ["31格对应一个月的31天；刮出金额即得该金额。","刮出幸运图符中"+PAYOUT.dayLuckyPrize+"小鱼干，多处中奖相加。"];
     case "chineseRed": return ["你的号码与中奖号码之一相同，获得该格金额。","红字为该格金额×2，灯笼为×5，中国结为20格金额之和。","幸运奖区刮出金额也计奖；各奖兼中兼得。"];
     case "reunion": return ["刮出喜字得该格金额；刮出囍字得该格金额×2。","25格各自独立，奖金相加。"];
-    case "tenfold": return ["每局任一号码等于中奖号码，获得该局右侧金额。","出现双鱼图符，该局右侧金额×10。"];
+    case "tenfold": return ["每局任一号码等于中奖号码，获得该局右侧金额。","出现双鱼图符，该局右侧金额×10。","多局中奖，奖金相加。"];
     case "big7": return ["刮出7得该格金额；77得×2；777得×3。","20格各自独立，奖金相加。"];
     default: return game.rules||[];
   }
 }
 function makeRealTicket(game){
-  const target=drawPrize(game);
-  const winner=target ? randomNumber(game.chances) : -1;
+  const awards=placeAwards(game,drawPrizes(game));
   const face={type:game.id,items:[]};
   if(game.id==="egg" || game.id==="day"){
     const signs=game.id==="egg"?["蛋","星","花","云","叶","锤"]:["花","书","云","咖","猫","月","信"];
     for(let i=0;i<game.chances;i++){
-      const amount=i===winner?target:0;
+      const amount=awards.get(i)||0;
       face.items.push({label:amount?(game.id==="day" && amount===PAYOUT.dayLuckyPrize?"幸运":"¥"+amount):signs[randomNumber(signs.length)],amount,day:game.id==="day"?i+1:undefined});
     }
   }else if(game.id==="reunion" || game.id==="big7"){
     const signs=game.id==="reunion"?["花","灯","云","礼","福","金","玉"]:["08","13","21","32","40","06","24"];
     for(let i=0;i<game.chances;i++){
-      const label=i===winner
-        ? game.id==="reunion"?(target%2===0 && Math.random()<.25?"囍":"喜"):(target%3===0 && Math.random()<.15?"777":target%2===0 && Math.random()<.3?"77":"7")
+      const award=awards.get(i)||0;
+      const label=award
+        ? game.id==="reunion"?(award%2===0 && Math.random()<.25?"囍":"喜"):(award%3===0 && Math.random()<.15?"777":award%2===0 && Math.random()<.3?"77":"7")
         : signs[randomNumber(signs.length)];
       const multiplier=label==="囍"||label==="77"?2:label==="777"?3:1;
-      const amount=i===winner?target/multiplier:smallPrize();
+      const amount=award?award/multiplier:smallPrize();
       face.items.push({label,amount});
     }
   }else if(game.id==="chineseRed"){
@@ -430,16 +444,17 @@ function makeRealTicket(game){
     for(let i=0;i<20;i++){
       let label=number();
       while(nums.has(label)) label=number();
-      if(i===winner){
+      const award=awards.get(i)||0;
+      if(award){
         const kind=randomNumber(4);
-        label=kind===0 && target===PAYOUT.jackpot && target%20===0?"中国结":kind===1 && target%5===0?"灯笼":kind===2 && target%2===0?"红":face.winningNumbers[randomNumber(5)];
+        label=kind===0 && awards.size===1 && award===PAYOUT.jackpot && award%20===0?"中国结":kind===1 && award%5===0?"灯笼":kind===2 && award%2===0?"红":face.winningNumbers[randomNumber(5)];
       }
       const multiplier=label==="灯笼"?5:label==="红"?2:1;
-      const amount=label==="中国结"?target/20:i===winner?target/multiplier:smallPrize();
+      const amount=label==="中国结"?award/20:award?award/multiplier:smallPrize();
       face.items.push({label,amount});
     }
-    if(face.items.some(item=>item.label==="中国结")) face.items.forEach(item=>item.amount=target/20);
-    face.lucky={label:"幸运奖",amount:winner===20?target:0};
+    if(face.items.some(item=>item.label==="中国结")) face.items.forEach(item=>item.amount=PAYOUT.jackpot/20);
+    face.lucky={label:"幸运奖",amount:awards.get(20)||0};
   }else if(game.id==="tenfold"){
     face.winningNumber=number();
     for(let i=0;i<10;i++){
@@ -449,8 +464,9 @@ function makeRealTicket(game){
         while(value===face.winningNumber || numbers.includes(value)) value=number();
         numbers.push(value);
       }
-      if(i===winner) numbers[randomNumber(6)]=target%10===0 && Math.random()<.25?"双鱼":face.winningNumber;
-      face.items.push({numbers,amount:i===winner?target/(numbers.includes("双鱼")?10:1):smallPrize()});
+      const award=awards.get(i)||0;
+      if(award) numbers[randomNumber(6)]=award%10===0 && Math.random()<.25?"双鱼":face.winningNumber;
+      face.items.push({numbers,amount:award?award/(numbers.includes("双鱼")?10:1):smallPrize()});
     }
   }
   return face;
@@ -566,7 +582,7 @@ function brief(){
   if(!available().length)
     return reminder ? "\n【幸运票局】"+reminder : "";
   const names=GAMES.filter(g=>stock().some(t=>t.game.id===g.id) && g.price<=balance())
-    .map(g=>TICKET_SKINS[g.id][0]+"("+g.id+"/"+g.price+unit()+"/最高"+g.maxPrize+"小鱼干)").join("、");
+    .map(g=>TICKET_SKINS[g.id][0]+"("+g.id+"/"+g.price+unit()+"/单格最高"+g.maxPrize+"小鱼干)").join("、");
   return "\n【幸运票局】你想抽的时候可以自己花小鱼干挑一张虚拟刮刮乐，不必等 用户 提醒；可选款式："+names
     +"。想买时写 ⟪刮刮乐:款式ID⟫；票面和结果在票根册查看。"
     +"一轮最多一张，按钱包和现货决定；没中就算了，中奖找 用户 兑奖。"
@@ -581,11 +597,11 @@ function prompt(){
     return dueLine ? "\n【幸运票局】"+dueLine : "";
   const choices = GAMES.map(g=>{
     const tickets=stock().filter(t=>t.game.id===g.id);
-    return tickets.length ? TICKET_SKINS[g.id][0]+"("+g.id+"，"+g.price+" "+unit()+"，最高"+g.maxPrize+"小鱼干，"+g.tagline+"，票号 "+tickets.map(t=>t.serial).join("/")+")" : "";
+    return tickets.length ? TICKET_SKINS[g.id][0]+"("+g.id+"，"+g.price+" "+unit()+"，单格最高"+g.maxPrize+"小鱼干，"+g.tagline+"，票号 "+tickets.map(t=>t.serial).join("/")+")" : "";
   }).filter(Boolean).join("；");
   return "\n【幸运票局】你想抽的时候可以自己决定花小鱼干买一张虚拟刮刮乐，不必等 用户 提醒，也不必每次醒来都买。"
     +" 今天已刮 "+todaysCount()+" 张；钱包有 "+balance()+" "+unit()+"。"
-    +" 现票："+choices+"。想买并亲自刮开时，在回复末尾写 ⟪刮刮乐:款式ID|票号⟫，一轮最多一张。"
+    +" 现票："+choices+"。一票可中多格，奖金累加；单格最高"+PAYOUT.jackpot+"小鱼干，一票最多一个最高奖格。想买并亲自刮开时，在回复末尾写 ⟪刮刮乐:款式ID|票号⟫，一轮最多一张。"
     +" 系统会扣款、刮开并记录结果，票面和规则在票根册查看。刮开前不要编结果。中奖后你再找 用户 兑奖，未中就算了。"
     +(dueLine ? " "+dueLine : "");
 }
@@ -831,7 +847,6 @@ if(!document.getElementById("lt-style")){
 return {page,prompt,brief,handle,buy,stock,restock,redeem,latest:()=>{syncLedger();return ledger.records[0]||null;},
   snapshot:()=>{syncLedger();return JSON.parse(JSON.stringify(ledger));},dayKey,DAY_LIMIT,dailyLimit};
 })();
-
 
 
 
