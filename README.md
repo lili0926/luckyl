@@ -4,18 +4,6 @@
 
 > 使用宿主提供的**虚拟货币**，不连接真实彩票销售或兑奖。概率为项目内模拟设定，**不是**官方彩票概率。
 
-## 快速预览
-
-需要 Node.js 18+，无额外依赖：
-
-```sh
-node serve.cjs
-```
-
-打开 http://127.0.0.1:4346/ （可用 `PORT` 改端口）。
-
-预览自带假钱包，默认货币为「积分」，可加余额、清空票根。
-
 ## 接入宿主
 
 加载：
@@ -42,13 +30,19 @@ node serve.cjs
 
 ## 调爆率
 
-见 `frontend/parts/27_lucky_ticket.js` 顶部 `PAYOUT`。保持 `jackpotRate + regularRate ≤ 1`。
+编辑 `frontend/parts/27_lucky_ticket.js` 顶部 `PAYOUT`。保持 `jackpotRate + regularRate ≤ 1`。
 
 ## 测试
 
 ```sh
 node frontend/tests/lucky_ticket.test.cjs
 ```
+
+## 目录
+
+- `frontend/parts/27_lucky_ticket.js` — 逻辑
+- `frontend/doodle/lottery.css` — 样式
+- `frontend/tests/lucky_ticket.test.cjs` — 规则与概率测试
 
 ## 分享说明
 
