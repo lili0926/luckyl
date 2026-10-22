@@ -2,7 +2,7 @@ const LuckyTicket = (() => {
 // Virtual payout settings. Rates apply to each newly purchased ticket.
 const PAYOUT = {
   jackpotRate:0.01,
-  regularRate:0.45,
+  regularRate:0.69,
   jackpot:500,
   lowPricePrizes:[5,5,10,10,20,20],
   highPricePrizes:[10,20,20,30,40,50,60],
@@ -395,12 +395,12 @@ function drawPrize(game){
 function ruleLines(game){
   switch(game.id){
     case "egg": return ["15个彩蛋中，刮出奖金金额即得该金额。","多处中奖，奖金相加。"];
-    case "day": return ["31格对应一个月的31天；刮出金额即得该金额。","刮出幸运图符中"+PAYOUT.dayLuckyPrize+unit()+"，多处中奖相加。"];
+    case "day": return ["31格对应一个月的31天；刮出金额即得该金额。","刮出幸运图符中"+PAYOUT.dayLuckyPrize+"小鱼干，多处中奖相加。"];
     case "chineseRed": return ["你的号码与中奖号码之一相同，获得该格金额。","红字为该格金额×2，灯笼为×5，中国结为20格金额之和。","幸运奖区刮出金额也计奖；各奖兼中兼得。"];
     case "reunion": return ["刮出喜字得该格金额；刮出囍字得该格金额×2。","25格各自独立，奖金相加。"];
     case "tenfold": return ["每局任一号码等于中奖号码，获得该局右侧金额。","出现双鱼图符，该局右侧金额×10。"];
     case "big7": return ["刮出7得该格金额；77得×2；777得×3。","20格各自独立，奖金相加。"];
-    default: return (game.rules||[]).map(u);
+    default: return game.rules||[];
   }
 }
 function makeRealTicket(game){
@@ -493,7 +493,7 @@ const dailyLimit = () => DAY_LIMIT;
 const fresh = () => ({batches:{},sold:[],records:[],processed:[]});
 function load(){
   try{
-    const parsed = JSON.parse(localStorage.getItem(STORE) || "null");
+    const parsed = ensureWallet().luckyTickets || JSON.parse(localStorage.getItem(STORE) || "null");
     if(!parsed || typeof parsed !== "object") return fresh();
     return {
       batches:parsed.batches && typeof parsed.batches==="object" ? parsed.batches : {},
@@ -506,11 +506,34 @@ function load(){
 let ledger = load();
 let narratingId = "";
 let queuedNarration = null;
+function syncLedger(){
+  const saved=ensureWallet().luckyTickets;
+  if(saved && saved!==ledger) ledger=saved;
+}
 function save(next){
-  localStorage.setItem(STORE, JSON.stringify(next));
+  const wallet=ensureWallet(), previous=wallet.luckyTickets;
+  wallet.luckyTickets=next;
+  try{walletSave();}
+  catch(e){wallet.luckyTickets=previous;throw e;}
   ledger = next;
 }
+function walletCommit(next,amount,note,by){
+  const wallet=ensureWallet();
+  const previous={tickets:wallet.luckyTickets,balance:wallet.balance,ledger:Array.isArray(wallet.ledger)?wallet.ledger.slice():wallet.ledger};
+  wallet.luckyTickets=next;
+  try{
+    walletEntry(amount,note,by);
+    ledger=next;
+  }catch(e){
+    wallet.luckyTickets=previous.tickets;
+    wallet.balance=previous.balance;
+    wallet.ledger=previous.ledger;
+    try{walletSave();}catch(_){}
+    throw e;
+  }
+}
 function stock(){
+  syncLedger();
   const sold = new Set(ledger.sold);
   const items = [];
   GAMES.forEach((game,index) => {
@@ -535,12 +558,10 @@ function balance(){
   catch(_){return 0;}
 }
 function unit(){
-  try{return walletUnit();}catch(_){return "积分";}
-}
-function u(s){ return String(s==null?"":s).split("小鱼干").join(unit()); 
+  try{return walletUnit();}catch(_){return "小鱼干";}
 }
 function available(){ return stock().filter(t=>t.game.price<=balance()); }
-function pending(){ return ledger.records.filter(r=>r.prize>0 && r.status==="pending"); }
+function pending(){ syncLedger();return ledger.records.filter(r=>r.prize>0 && r.status==="pending"); }
 function describeRecord(record){
   const game=GAME_MAP[record.gameId];
   if(!game) return "";
@@ -555,7 +576,7 @@ function describeRecord(record){
     const lucky=face.lucky?"；幸运奖区："+(face.lucky.amount||"未中"):"";
     return "最近刮的「"+record.name+"」票号"+record.serial+"；票面："+shown+extra+ten+lucky
       +"；本票规则："+ruleLines(game).join(" ")
-      +"；"+(record.prize?"共中"+record.prize+unit()+"，"+(record.status==="redeemed"?"已兑奖":"待 用户 确认兑奖"):"未中奖")+".";
+      +"；"+(record.prize?"共中"+record.prize+"小鱼干，"+(record.status==="redeemed"?"已兑奖":"待 用户 确认兑奖"):"未中奖")+".";
   }
   const cells=(record.cells||[]).map(i=>game.symbols[i]);
   const rows=[];
@@ -574,8 +595,8 @@ function describeRecord(record){
     }else near="没有刮到这款票的中奖图案";
   }
   return "最近刮的「"+record.name+"」票号"+record.serial+"；从上到下每行图案："+rows.join(" / ")
-    +"；规则："+game.tagline+"；"+(record.prize?"中了"+record.prize+unit()+"，"+(record.status==="redeemed"?"已兑奖入账":"等 用户 确认兑奖"):"没中，"+near)
-    +"；本款最高奖"+game.maxPrize+unit()+"。";
+    +"；规则："+game.tagline+"；"+(record.prize?"中了"+record.prize+"小鱼干，"+(record.status==="redeemed"?"已兑奖入账":"等 用户 确认兑奖"):"没中，"+near)
+    +"；本款最高奖"+game.maxPrize+"小鱼干。";
 }
 function recentContext(hours){
   const record=ledger.records[0];
@@ -588,8 +609,8 @@ function brief(){
   if(!available().length)
     return reminder || last ? "\n【幸运票局】"+[reminder,last].filter(Boolean).join(" ") : "";
   const names=GAMES.filter(g=>stock().some(t=>t.game.id===g.id) && g.price<=balance())
-    .map(g=>TICKET_SKINS[g.id][0]+"("+g.id+"/"+g.price+unit()+"/最高"+g.maxPrize+unit()+")").join("、");
-  return "\n【幸运票局】你想抽的时候可以自己花"+unit()+"挑一张虚拟刮刮乐，不必等 用户 提醒；可选款式："+names
+    .map(g=>TICKET_SKINS[g.id][0]+"("+g.id+"/"+g.price+unit()+"/最高"+g.maxPrize+"小鱼干)").join("、");
+  return "\n【幸运票局】你想抽的时候可以自己花小鱼干挑一张虚拟刮刮乐，不必等 用户 提醒；可选款式："+names
     +"。想买时写 ⟪刮刮乐:款式ID⟫；先别编刮开的图案或结果，系统会给出真实票面。"
     +"一轮最多一张，按钱包和现货决定；没中就算了，中奖找 用户 兑奖。"
     +[reminder,last].filter(Boolean).map(s=>" "+s).join("");
@@ -598,15 +619,15 @@ function prompt(){
   const due = pending().filter(r=>r.narrated!==false && r.id!==narratingId);
   const last = ledger.records[0] && ledger.records[0].narrated!==false && ledger.records[0].id!==narratingId ? ledger.records[0] : null;
   const dueLine = due.length
-    ? "你有"+due.length+"张中奖票还没兑，最高一张 "+Math.max(...due.map(r=>r.prize))+unit()+"。可以自然地找 用户 兑奖。"
+    ? "你有"+due.length+"张中奖票还没兑，最高一张 "+Math.max(...due.map(r=>r.prize))+" 小鱼干。可以自然地找 用户 兑奖。"
     : "";
   if(!available().length)
     return dueLine || last ? "\n【幸运票局】"+[dueLine,last&&describeRecord(last)].filter(Boolean).join(" ") : "";
   const choices = GAMES.map(g=>{
     const tickets=stock().filter(t=>t.game.id===g.id);
-    return tickets.length ? TICKET_SKINS[g.id][0]+"("+g.id+"，"+g.price+" "+unit()+"，最高"+g.maxPrize+unit()+"，"+g.tagline+"，票号 "+tickets.map(t=>t.serial).join("/")+")" : "";
+    return tickets.length ? TICKET_SKINS[g.id][0]+"("+g.id+"，"+g.price+" "+unit()+"，最高"+g.maxPrize+"小鱼干，"+g.tagline+"，票号 "+tickets.map(t=>t.serial).join("/")+")" : "";
   }).filter(Boolean).join("；");
-  return "\n【幸运票局】你想抽的时候可以自己决定花"+unit()+"买一张虚拟刮刮乐，不必等 用户 提醒，也不必每次醒来都买。"
+  return "\n【幸运票局】你想抽的时候可以自己决定花小鱼干买一张虚拟刮刮乐，不必等 用户 提醒，也不必每次醒来都买。"
     +" 今天已刮 "+todaysCount()+" 张；钱包有 "+balance()+" "+unit()+"。"
     +" 现票："+choices+"。想买并亲自刮开时，在回复末尾写 ⟪刮刮乐:款式ID|票号⟫，一轮最多一张。"
     +" 系统会扣款、刮开并记录结果；这张票的格子和规则会在购买后单独交给你。刮开前不要编结果。中奖后你再找 用户 兑奖，未中就算了。"
@@ -628,6 +649,7 @@ function outcome(game){
   };
 }
 function buy(gameId,serial,agent,requestId){
+  syncLedger();
   const same = requestId && ledger.processed.find(p=>p.id===requestId);
   if(same){
     const record=ledger.records.find(r=>r.id===same.recordId);
@@ -654,13 +676,10 @@ function buy(gameId,serial,agent,requestId){
     records:[record].concat(ledger.records),
     processed:requestId ? [{id:requestId,recordId:record.id}].concat(ledger.processed).slice(0,200) : ledger.processed,
   };
-  let debited=false;
   try{
-    walletEntry(-game.price, "刮刮乐 "+record.name+" "+record.serial, "player");
-    debited=true;
-    save(next);
+    walletCommit(next,-game.price,"刮刮乐 "+record.name+" "+record.serial,"player");
   }catch(e){
-    if(debited) try{ walletEntry(game.price, "刮刮乐购票失败退回", "system"); }catch(_){}
+    try{console.warn("lottery purchase",e);}catch(_){}
     return {ok:false,reason:"记录失败，请稍后再试"};
   }
   try{ if(typeof postAppEvent==="function") postAppEvent("lottery_scratch",{name:record.name,prize:record.prize}); }catch(_){}
@@ -698,10 +717,11 @@ function scratchPacket(record){
       row:Math.floor(i/game.cols)+1,column:i%game.cols+1,
       symbol:game.symbols[index]?.name||"?",
     })),
-    rules:(game.rules||[]).map(u),
+    rules:game.rules,
   };
 }
 async function autoNarrate(queued){
+  syncLedger();
   if(!queued || typeof window==="undefined" || window.__ltNarrationLock) return;
   const record=ledger.records.find(r=>r.id===queued.recordId);
   if(!record || record.narrated!==false) return;
@@ -747,6 +767,7 @@ function handle(body,agent,requestId){
   return (clean+"\n\n"+resultText(bought.record)).trim();
 }
 function restock(gameId){
+  syncLedger();
   const game=GAME_MAP[gameId];
   if(!game) return false;
   if(stock().some(t=>t.game.id===gameId)) return false;
@@ -754,17 +775,16 @@ function restock(gameId){
   save(next);return true;
 }
 function redeem(recordId){
+  syncLedger();
   const record=ledger.records.find(r=>r.id===recordId);
   if(!record || record.status!=="pending") return false;
   const prize=Math.round(Number(record.prize)||0);
   if(prize<=0) return false;
-  let credited=false;
   try{
-    walletEntry(prize,"刮刮乐兑奖 "+record.name+" "+record.serial,"operator");
-    credited=true;
-    save({...ledger,records:ledger.records.map(r=>r.id===recordId?{...r,status:"redeemed",fishPaid:prize,redeemedAt:new Date().toISOString()}:r)});
-  }catch(_){
-    if(credited) try{walletEntry(-prize,"刮刮乐兑奖失败冲正","system");}catch(_){}
+    const next={...ledger,records:ledger.records.map(r=>r.id===recordId?{...r,status:"redeemed",fishPaid:prize,redeemedAt:new Date().toISOString()}:r)};
+    walletCommit(next,prize,"刮刮乐兑奖 "+record.name+" "+record.serial,"operator");
+  }catch(e){
+    try{console.warn("lottery redemption",e);}catch(_){}
     return false;
   }
   return true;
@@ -777,10 +797,11 @@ function renderAtTop(){
   if(scroller) scroller.scrollTop=0;
 }
 function chatCardHtml(recordId,clickable){
+  syncLedger();
   const record=ledger.records.find(r=>r.id===recordId);
   if(!record) return "";
   const revealed=record.narrated!==false;
-  const status=!revealed ? "正在读票" : record.prize ? "中奖 "+record.prize+" "+unit()+" · "+(record.status==="redeemed"?"已入账":"待兑奖") : "未中奖";
+  const status=!revealed ? "正在读票" : record.prize ? "中奖 "+record.prize+" 小鱼干 · "+(record.status==="redeemed"?"已入账":"待兑奖") : "未中奖";
   return '<div class="lt-chat-card"><strong>票号 '+escapeText(record.serial)+' · '+escapeText(record.name)+'</strong><span>'+status+'</span>'
     +'<details><summary>翻开刮开的票面</summary>'+ticketHtml(record,!revealed)+'</details>'
     +(clickable && revealed && record.status==="pending"?'<button type="button" data-lt-redeem="'+escapeText(record.id)+'">确认兑奖</button>':"")
@@ -840,7 +861,7 @@ function ticketHtml(record,hideOutcome=false){
       +'<div class="lt-receipt-meta">'+escapeText(game.tagline)+'</div><b>'+record.price+' '+escapeText(unit())+'</b></div>'
       +realTicketHtml(record,game,hideOutcome)
       +'<div class="lt-receipt-foot"><span>票号 '+escapeText(record.serial)+'</span><strong>'
-      +(hideOutcome?'等读完票面':record.prize?'中奖 '+record.prize+' '+unit():'未中奖')+'</strong></div></div>';
+      +(hideOutcome?'等读完票面':record.prize?'中奖 '+record.prize+' 小鱼干':'未中奖')+'</strong></div></div>';
   }
   const cells=(record.cells||[]).map((index,i)=>{
     const symbol=game.symbols[index];
@@ -854,15 +875,16 @@ function ticketHtml(record,hideOutcome=false){
     +'<div class="lt-receipt-meta">'+escapeText(game.tagline)+'</div><b>'+record.price+' '+escapeText(unit())+'</b></div>'
     +'<div class="lt-grid" style="grid-template-columns:repeat('+game.cols+',1fr)">'+cells+'</div>'
     +'<div class="lt-receipt-foot"><span>票号 '+escapeText(record.serial)+'</span><strong>'
-    +(hideOutcome ? '等读完票面' : record.prize ? '中奖 '+record.prize+' '+unit() : '未中奖')+'</strong></div>'
+    +(hideOutcome ? '等读完票面' : record.prize ? '中奖 '+record.prize+' 小鱼干' : '未中奖')+'</strong></div>'
     +'</div>';
 }
 function page(){
+  syncLedger();
   const items=stock();
   const latest=ledger.records.find(r=>r.id===selectedRecord)||ledger.records[0];
   if(view==="receipts"){
     const due=pending().map(r=>'<div class="lt-claim">'
-    +'<span>'+escapeText(r.name)+' · '+escapeText(r.serial)+'<br><b>待兑奖 '+r.prize+' '+unit()+'</b></span>'
+    +'<span>'+escapeText(r.name)+' · '+escapeText(r.serial)+'<br><b>待兑奖 '+r.prize+' 小鱼干</b></span>'
       +'<button type="button" data-lt-redeem="'+escapeText(r.id)+'">确认兑奖</button></div>').join("");
     const history=ledger.records.map(r=>'<button type="button" class="lt-history" data-lt-view="'+escapeText(r.id)+'">'
       +'<span>'+escapeText(r.name)+' <small>'+escapeText(r.serial)+'</small></span>'
@@ -932,6 +954,10 @@ if(!document.getElementById("lt-style")){
   link.id="lt-style";link.rel="stylesheet";link.href="doodle/lottery.css";
   document.head.appendChild(link);
 }
-return {page,prompt,brief,handle,buy,stock,restock,redeem,chatCardHtml,scratchPacket,takePendingNarration,autoNarrate,latest:()=>ledger.records[0]||null,
-  snapshot:()=>JSON.parse(JSON.stringify(ledger)),dayKey,DAY_LIMIT,dailyLimit};
+return {page,prompt,brief,handle,buy,stock,restock,redeem,chatCardHtml,scratchPacket,takePendingNarration,autoNarrate,latest:()=>{syncLedger();return ledger.records[0]||null;},
+  snapshot:()=>{syncLedger();return JSON.parse(JSON.stringify(ledger));},dayKey,DAY_LIMIT,dailyLimit};
 })();
+
+
+
+
