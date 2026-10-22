@@ -118,6 +118,14 @@ async function run(){
       else assert.equal(record.prize,prize);
     }
   }
+  const oldStore=new Map([['luckyl-ticket-v1',JSON.stringify({batches:{},sold:[],records:[{id:'old-ticket',gameId:'egg',prize:0,status:'lost'}],processed:[]})]]);
+  const oldWallet={balance:100,ledger:[]};
+  const migrated={...context,localStorage:{getItem:k=>oldStore.get(k)||null},ensureWallet:()=>oldWallet,
+    walletSave(){},walletEntry:n=>{oldWallet.balance+=n;}};
+  vm.runInNewContext(fs.readFileSync(__dirname+'/../parts/27_lucky_ticket.js','utf8')+'\nthis.ticket=LuckyTicket;',migrated);
+  assert.equal(migrated.ticket.latest().id,'old-ticket','existing ticket stubs remain readable');
+  assert.equal(migrated.ticket.buy('egg','',{id:'a1'},'legacy-migration').ok,true);
+  assert.equal(oldWallet.luckyTickets.records.length,2,'old ticket stubs migrate into wallet storage');
   console.log('six distinct ticket layouts, rules, payout, narration and redemption passed');
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});
