@@ -504,8 +504,6 @@ function load(){
   }catch(_){ return fresh(); }
 }
 let ledger = load();
-let narratingId = "";
-let queuedNarration = null;
 function syncLedger(){
   const saved=ensureWallet().luckyTickets;
   if(saved && saved!==ledger) ledger=saved;
@@ -562,67 +560,25 @@ function unit(){
 }
 function available(){ return stock().filter(t=>t.game.price<=balance()); }
 function pending(){ syncLedger();return ledger.records.filter(r=>r.prize>0 && r.status==="pending"); }
-function describeRecord(record){
-  const game=GAME_MAP[record.gameId];
-  if(!game) return "";
-  if(game.real && record.face){
-    const face=record.face;
-    const shown=face.items.map((item,i)=>{
-      const label=item.numbers?item.numbers.join("·"):item.label;
-      return (game.id==="day"?(i+1)+"日":"第"+(i+1)+"格")+":"+label+(item.amount?"／"+item.amount:"");
-    }).join("、");
-    const extra=face.winningNumbers?"；中奖号码："+face.winningNumbers.join("、"):"";
-    const ten=face.winningNumber?"；中奖号码："+face.winningNumber:"";
-    const lucky=face.lucky?"；幸运奖区："+(face.lucky.amount||"未中"):"";
-    return "最近刮的「"+record.name+"」票号"+record.serial+"；票面："+shown+extra+ten+lucky
-      +"；本票规则："+ruleLines(game).join(" ")
-      +"；"+(record.prize?"共中"+record.prize+"小鱼干，"+(record.status==="redeemed"?"已兑奖":"待 用户 确认兑奖"):"未中奖")+".";
-  }
-  const cells=(record.cells||[]).map(i=>game.symbols[i]);
-  const rows=[];
-  for(let r=0;r<game.rows;r++) rows.push(cells.slice(r*game.cols,(r+1)*game.cols).map(s=>s?s.name:"?").join("、"));
-  let near="";
-  if(!record.prize){
-    if(game.rule==="set"){
-      const missing=keySymbols(game).filter(s=>!cells.includes(s)).map(s=>s.name);
-      near=missing.length===1 ? "只差「"+missing[0]+"」就凑齐四季" : "还缺「"+missing.join("、")+"」";
-    }else if(game.rule==="rowTriple" || game.rule==="line"){
-      const lines=game.rule==="rowTriple"
-        ? Array.from({length:game.rows},(_,r)=>Array.from({length:game.cols},(_,c)=>r*game.cols+c))
-        : linesOf(game);
-      const close=lines.some(line=>line.some((i,k)=>k>0 && cells[i]===cells[line[k-1]]));
-      near=close ? "出现过一对相同图案，还差一个才连成奖" : "没有凑成三连图案";
-    }else near="没有刮到这款票的中奖图案";
-  }
-  return "最近刮的「"+record.name+"」票号"+record.serial+"；从上到下每行图案："+rows.join(" / ")
-    +"；规则："+game.tagline+"；"+(record.prize?"中了"+record.prize+"小鱼干，"+(record.status==="redeemed"?"已兑奖入账":"等 用户 确认兑奖"):"没中，"+near)
-    +"；本款最高奖"+game.maxPrize+"小鱼干。";
-}
-function recentContext(hours){
-  const record=ledger.records[0];
-  return record && record.narrated!==false && record.id!==narratingId && Date.now()-Date.parse(record.time)<hours*3600000 ? describeRecord(record) : "";
-}
 function brief(){
-  const due=pending().filter(r=>r.narrated!==false && r.id!==narratingId);
+  const due=pending();
   const reminder=due.length ? "你有 "+due.length+" 张中奖票待找 用户 兑奖。" : "";
-  const last=recentContext(2);
   if(!available().length)
-    return reminder || last ? "\n【幸运票局】"+[reminder,last].filter(Boolean).join(" ") : "";
+    return reminder ? "\n【幸运票局】"+reminder : "";
   const names=GAMES.filter(g=>stock().some(t=>t.game.id===g.id) && g.price<=balance())
     .map(g=>TICKET_SKINS[g.id][0]+"("+g.id+"/"+g.price+unit()+"/最高"+g.maxPrize+"小鱼干)").join("、");
   return "\n【幸运票局】你想抽的时候可以自己花小鱼干挑一张虚拟刮刮乐，不必等 用户 提醒；可选款式："+names
-    +"。想买时写 ⟪刮刮乐:款式ID⟫；先别编刮开的图案或结果，系统会给出真实票面。"
+    +"。想买时写 ⟪刮刮乐:款式ID⟫；票面和结果在票根册查看。"
     +"一轮最多一张，按钱包和现货决定；没中就算了，中奖找 用户 兑奖。"
-    +[reminder,last].filter(Boolean).map(s=>" "+s).join("");
+    +(reminder ? " "+reminder : "");
 }
 function prompt(){
-  const due = pending().filter(r=>r.narrated!==false && r.id!==narratingId);
-  const last = ledger.records[0] && ledger.records[0].narrated!==false && ledger.records[0].id!==narratingId ? ledger.records[0] : null;
+  const due = pending();
   const dueLine = due.length
     ? "你有"+due.length+"张中奖票还没兑，最高一张 "+Math.max(...due.map(r=>r.prize))+" 小鱼干。可以自然地找 用户 兑奖。"
     : "";
   if(!available().length)
-    return dueLine || last ? "\n【幸运票局】"+[dueLine,last&&describeRecord(last)].filter(Boolean).join(" ") : "";
+    return dueLine ? "\n【幸运票局】"+dueLine : "";
   const choices = GAMES.map(g=>{
     const tickets=stock().filter(t=>t.game.id===g.id);
     return tickets.length ? TICKET_SKINS[g.id][0]+"("+g.id+"，"+g.price+" "+unit()+"，最高"+g.maxPrize+"小鱼干，"+g.tagline+"，票号 "+tickets.map(t=>t.serial).join("/")+")" : "";
@@ -630,9 +586,8 @@ function prompt(){
   return "\n【幸运票局】你想抽的时候可以自己决定花小鱼干买一张虚拟刮刮乐，不必等 用户 提醒，也不必每次醒来都买。"
     +" 今天已刮 "+todaysCount()+" 张；钱包有 "+balance()+" "+unit()+"。"
     +" 现票："+choices+"。想买并亲自刮开时，在回复末尾写 ⟪刮刮乐:款式ID|票号⟫，一轮最多一张。"
-    +" 系统会扣款、刮开并记录结果；这张票的格子和规则会在购买后单独交给你。刮开前不要编结果。中奖后你再找 用户 兑奖，未中就算了。"
-    +(dueLine ? " "+dueLine : "")
-    +(last ? " "+describeRecord(last) : "");
+    +" 系统会扣款、刮开并记录结果，票面和规则在票根册查看。刮开前不要编结果。中奖后你再找 用户 兑奖，未中就算了。"
+    +(dueLine ? " "+dueLine : "");
 }
 function outcome(game){
   if(game.real){
@@ -667,7 +622,7 @@ function buy(gameId,serial,agent,requestId){
     ticketId:ticket.id,serial:ticket.serial,gameId:game.id,
     name:TICKET_SKINS[game.id][0],price:game.price,
     prize:draw.prize,bonus:draw.bonus,cells:draw.cells,face:draw.face,
-    winCells:draw.winCells,status:draw.prize>0?"pending":"lost",narrated:false,
+    winCells:draw.winCells,status:draw.prize>0?"pending":"lost",
     agentId:agent && agent.id || "", day:dayKey(), time:new Date().toISOString(),
   };
   const next={
@@ -685,86 +640,16 @@ function buy(gameId,serial,agent,requestId){
   try{ if(typeof postAppEvent==="function") postAppEvent("lottery_scratch",{name:record.name,prize:record.prize}); }catch(_){}
   return {ok:true,record};
 }
-function resultText(record){
-  return "〔"+record.name+" "+record.serial+"：票面已经刮开，先读完图案。〕\n[lottery:"+record.id+"]";
-}
-function takePendingNarration(){
-  const queued=queuedNarration;
-  queuedNarration=null;
-  return queued;
-}
-function scratchPacket(record){
-  const game=GAME_MAP[record.gameId];
-  if(!game) return null;
-  if(game.real && record.face){
-    const face=record.face;
-    return {
-      ticket:record.name,serial:record.serial,layout:game.chances+"次机会",
-      winningNumbers:face.winningNumbers||face.winningNumber||undefined,
-      cells:face.items.map((item,i)=>({
-        position:game.id==="day"?(i+1)+"日":"第"+(i+1)+"格",
-        symbol:item.numbers?item.numbers.join("、"):item.label,
-        amount:item.amount||undefined,
-      })),
-      luckyArea:face.lucky||undefined,
-      rules:ruleLines(game),
-    };
-  }
-  return {
-    ticket:record.name, serial:record.serial,
-    rows:game.rows, columns:game.cols,
-    cells:(record.cells||[]).map((index,i)=>({
-      row:Math.floor(i/game.cols)+1,column:i%game.cols+1,
-      symbol:game.symbols[index]?.name||"?",
-    })),
-    rules:game.rules,
-  };
-}
-async function autoNarrate(queued){
-  syncLedger();
-  if(!queued || typeof window==="undefined" || window.__ltNarrationLock) return;
-  const record=ledger.records.find(r=>r.id===queued.recordId);
-  if(!record || record.narrated!==false) return;
-  window.__ltNarrationLock=true;
-  let ownedLoading=false;
-  try{
-    for(let i=0;i<40 && state.chatLoading;i++) await new Promise(resolve=>setTimeout(resolve,250));
-    if(state.chatLoading) return;
-    const agent=(state.agents||[]).find(a=>a.id===queued.agentId);
-    if(!agent || typeof callOneAgentReply!=="function") return;
-    const packet=scratchPacket(record);
-    if(!packet) return;
-    narratingId=record.id;
-    const extra="\n\n【系统·刚刮开的这一张票】下面是票面数据，不含中奖结论。按这款票自己的刮法阅读格子、号码和奖区；先说刮开过程中看到了什么，再按本票规则自己判断。自然地对 用户 说两三句，不要复述 JSON、不要宣称调用过逐格工具，也不要再买一张。\n"+JSON.stringify(packet);
-    const req=buildMainChatRequest(agent,extra);
-    state.chatLoading=true;
-    ownedLoading=true;
-    render();
-    await callOneAgentReply(agent,req.apiMsgs,req.sys);
-  }catch(e){
-    try{console.warn("lottery narration",e);}catch(_){}
-  }finally{
-    narratingId="";
-    const current=ledger.records.find(r=>r.id===queued.recordId);
-    if(current && current.narrated===false)
-      try{save({...ledger,records:ledger.records.map(r=>r.id===queued.recordId?{...r,narrated:true}:r)});}catch(_){}
-    if(ownedLoading) state.chatLoading=false;
-    window.__ltNarrationLock=false;
-    render();
-  }
-}
 function handle(body,agent,requestId){
   const source=String(body||"");
   const marks=[...source.matchAll(/⟪刮刮乐\s*[:：]\s*([^|⟫\n]+)(?:\|([^⟫\n]+))?⟫/g)];
   if(!marks.length) return source;
-  if(narratingId) return source.replace(/⟪刮刮乐\s*[:：][^⟫]*⟫/g,"").trim();
   const clean=source.replace(/⟪刮刮乐\s*[:：][^⟫]*⟫/g,"").trim();
   const id=String(marks[0][1]||"").trim();
   const serial=String(marks[0][2]||"").trim();
   const bought=buy(id,serial,agent,requestId);
   if(!bought.ok) return (clean+"〔这张没买成："+bought.reason+"。〕").trim();
-  if(!bought.duplicate) queuedNarration={recordId:bought.record.id,agentId:agent&&agent.id||""};
-  return (clean+"\n\n"+resultText(bought.record)).trim();
+  return clean;
 }
 function restock(gameId){
   syncLedger();
@@ -795,17 +680,6 @@ function renderAtTop(){
   render();
   const scroller=document.querySelector("#app > .lt-page");
   if(scroller) scroller.scrollTop=0;
-}
-function chatCardHtml(recordId,clickable){
-  syncLedger();
-  const record=ledger.records.find(r=>r.id===recordId);
-  if(!record) return "";
-  const revealed=record.narrated!==false;
-  const status=!revealed ? "正在读票" : record.prize ? "中奖 "+record.prize+" 小鱼干 · "+(record.status==="redeemed"?"已入账":"待兑奖") : "未中奖";
-  return '<div class="lt-chat-card"><strong>票号 '+escapeText(record.serial)+' · '+escapeText(record.name)+'</strong><span>'+status+'</span>'
-    +'<details><summary>翻开刮开的票面</summary>'+ticketHtml(record,!revealed)+'</details>'
-    +(clickable && revealed && record.status==="pending"?'<button type="button" data-lt-redeem="'+escapeText(record.id)+'">确认兑奖</button>':"")
-    +'</div>';
 }
 const GLYPHS = [
   '<circle cx="24" cy="24" r="15"/><circle cx="24" cy="24" r="5"/>',
@@ -954,7 +828,7 @@ if(!document.getElementById("lt-style")){
   link.id="lt-style";link.rel="stylesheet";link.href="doodle/lottery.css";
   document.head.appendChild(link);
 }
-return {page,prompt,brief,handle,buy,stock,restock,redeem,chatCardHtml,scratchPacket,takePendingNarration,autoNarrate,latest:()=>{syncLedger();return ledger.records[0]||null;},
+return {page,prompt,brief,handle,buy,stock,restock,redeem,latest:()=>{syncLedger();return ledger.records[0]||null;},
   snapshot:()=>{syncLedger();return JSON.parse(JSON.stringify(ledger));},dayKey,DAY_LIMIT,dailyLimit};
 })();
 
