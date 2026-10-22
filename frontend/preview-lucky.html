@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>luckyl · 刮刮乐预览</title>
+  <link rel="stylesheet" href="doodle/lottery.css">
+  <style>
+    body{margin:0;background:#f4f4f5;color:#26272b;font:14px/1.5 system-ui,sans-serif}
+    .demo-bar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+      padding:10px 16px;background:#fff;border-bottom:1px solid #dedfe2}
+    .demo-bar b{margin-right:auto}
+    .demo-bar button{border:1px solid #ccc;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer}
+    #app{max-width:480px;margin:0 auto;min-height:80dvh;background:#fff}
+    .hint{padding:12px 20px;color:#777;font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="demo-bar">
+    <b>luckyl 本地预览</b>
+    <span id="bal">余额 —</span>
+    <button type="button" id="add">+100 积分</button>
+    <button type="button" id="reset">清空票根</button>
+  </div>
+  <p class="hint">假钱包 · 不连真实支付。货币名由 <code>walletUnit()</code> 提供（本页为「积分」）。单独打开本 HTML 也可（需通过本地服务器加载 JS/CSS）。</p>
+  <div id="app"></div>
+  <script>
+    const wallet = { balance: 200 };
+    const state = { tab: "home", subPage: "lottery", chatLoading: false, agents: [{ id: "demo" }] };
+    function walletUnit(){ return "积分"; }
+    function ensureWallet(){ return wallet; }
+    function walletEntry(n){
+      wallet.balance += n;
+      if (wallet.balance < 0) throw new Error("余额不足");
+      paintBal();
+    }
+    function showToast(msg){ console.log("[toast]", msg); }
+    function subHeader(){ return ""; }
+    function postAppEvent(){}
+    function buildMainChatRequest(){ return { apiMsgs: [], sys: "" }; }
+    async function callOneAgentReply(){}
+    function render(){
+      const root = document.getElementById("app");
+      if (typeof LuckyTicket !== "undefined" && LuckyTicket.page) root.innerHTML = LuckyTicket.page();
+      paintBal();
+    }
+    function paintBal(){
+      document.getElementById("bal").textContent = "余额 " + wallet.balance + " " + walletUnit();
+    }
+    const _ls = window.localStorage;
+    window.localStorage = {
+      getItem: k => _ls.getItem("luckyl-preview:" + k),
+      setItem: (k, v) => _ls.setItem("luckyl-preview:" + k, v),
+      removeItem: k => _ls.removeItem("luckyl-preview:" + k)
+    };
+  </script>
+  <script src="parts/27_lucky_ticket.js"></script>
+  <script>
+    document.getElementById("add").onclick = () => { wallet.balance += 100; paintBal(); render(); };
+    document.getElementById("reset").onclick = () => {
+      if (!confirm("清空本预览的票根数据？")) return;
+      Object.keys(_ls).filter(k => k.indexOf("luckyl-preview:") === 0).forEach(k => _ls.removeItem(k));
+      location.reload();
+    };
+    render();
+    paintBal();
+  </script>
+</body>
+</html>
