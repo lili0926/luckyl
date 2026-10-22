@@ -27,7 +27,7 @@
 .lt-section h3{margin:0 0 11px;padding-bottom:9px;border-bottom:1px solid var(--lt-line);font-size:14px;font-weight:700}
 .lt-claim{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--lt-line);font-size:12px}
 .lt-claim b,.lt-history b{color:var(--lt-accent)}
-.lt-claim button,.lt-chat-card button{flex:none;border:0;border-radius:4px;background:var(--lt-accent);color:#fff;padding:9px 12px;font-size:11px;font-weight:700}
+.lt-claim button{flex:none;border:0;border-radius:4px;background:var(--lt-accent);color:#fff;padding:9px 12px;font-size:11px;font-weight:700}
 .lt-receipt{min-width:0;overflow:hidden;border:1px solid var(--lt-line);border-radius:4px;background:#fff}
 .lt-receipt-art{position:relative;min-height:113px;padding:17px 14px 19px;border-top:5px solid var(--lt-accent);border-bottom:1px solid var(--lt-line);background:#fff}
 .lt-receipt-eyebrow{display:block;color:var(--lt-muted);font-size:9px;letter-spacing:.13em}
@@ -50,7 +50,6 @@
 .lt-scratch-lucky{margin-top:5px;padding:8px 5px 2px;border-top:1px solid rgba(42,55,70,.18)}
 .lt-scratch-rules{margin:9px 2px 1px;padding-top:8px;border-top:1px solid rgba(42,55,70,.18);font-size:9px;line-height:1.5}
 .lt-scratch-rows{display:grid;gap:3px}.lt-scratch-row{display:grid;grid-template-columns:22px minmax(0,1fr) 35px;align-items:center;min-height:27px;padding:3px 5px;border:1px solid rgba(72,84,99,.2);background:rgba(255,255,255,.29);font-size:10px}.lt-scratch-row em{font-style:normal;opacity:.65}.lt-scratch-row span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.lt-scratch-row b{text-align:right}
-.lt-chat-card .lt-scratch{margin:6px 0;padding:5px}.lt-chat-card .lt-scratch-cell{min-height:38px}.lt-chat-card .lt-scratch--day .lt-scratch-cell{min-height:31px}.lt-chat-card .lt-scratch-cell strong{font-size:12px}.lt-chat-card .lt-scratch-cell small{font-size:7px}
 .lt-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:61px;border:1px solid var(--lt-line);background:#fff}
 .lt-cell span{display:block;height:25px;color:var(--lt-ink)}
 .lt-symbol{width:25px;height:25px}
@@ -61,14 +60,9 @@
 .lt-receipt-foot strong{color:var(--lt-accent)}
 .lt-history{display:flex;justify-content:space-between;gap:10px;width:100%;padding:12px 0;border:0;border-bottom:1px solid var(--lt-line);background:#fff;color:var(--lt-ink);text-align:left;font-size:12px}
 .lt-history small{display:block;margin-top:4px;color:var(--lt-muted)}
-.lt-chat-card{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;gap:7px;margin-top:8px;padding:12px;border:1px solid var(--lt-line);border-left:3px solid var(--lt-accent);border-radius:4px;background:#fff;color:var(--lt-ink);font-size:12px}
-.lt-chat-card details{min-width:0}
-.lt-chat-card strong{font-size:13px}.lt-chat-card>span{color:var(--lt-accent)}
-.lt-chat-card summary{cursor:pointer;color:var(--lt-ink);font-size:11px}
-.lt-chat-card details .lt-receipt{margin-top:8px}
-.lt-chat-card details .lt-receipt-art{min-height:90px}
-.lt-chat-card details .lt-cell{min-height:45px}
-.lt-chat-card details .lt-symbol{width:19px;height:19px}
 .lt-empty,.lt-note{color:var(--lt-muted);font-size:11px;line-height:1.6}
 .lt-note{margin:12px 0 0}
 @media(max-width:340px){.lt-page{padding:8px 13px 50px}.lt-shelf{margin:0 -13px;padding-left:13px;padding-right:13px}.lt-heading b{font-size:17px}.lt-balance{min-width:68px;font-size:10px}}
+
+
+
