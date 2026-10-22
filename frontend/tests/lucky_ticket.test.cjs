@@ -21,8 +21,6 @@ const context = {
   walletEntry:(n,note)=>{wallet.balance+=n;wallet.ledger.unshift({amount:n,note});context.walletSave();},
   postAppEvent(){},subHeader:()=>'<header></header>',setTimeout,Date:TestDate,
   Math:Object.assign(Object.create(Math),{random}),
-  buildMainChatRequest(_agent,hint){context.lastScratchHint=hint;return {apiMsgs:[],sys:hint};},
-  async callOneAgentReply(_agent,_messages,sys){context.lastScratchRequest=sys;},
 };
 vm.runInNewContext(fs.readFileSync(__dirname+'/../parts/27_lucky_ticket.js','utf8')+'\nthis.ticket=LuckyTicket;',context);
 const t=context.ticket;
@@ -58,20 +56,14 @@ async function run(){
   for(const [id,count,name] of specs){
     const available=t.stock().find(x=>x.game.id===id);
     const marker='⟪刮刮乐:'+id+'|'+available.serial+'⟫';
-    assert.match(t.handle(marker,{id:'a1'},'turn-'+id),/票面已经刮开/);
+    assert.equal(t.handle(marker,{id:'a1'},'turn-'+id),'','public module does not inject ticket content into chat');
     const r=t.latest();
     assert.equal(r.name,name);
     assert.equal(r.face.items.length,count);
     assert.equal(r.prize,expected(r),'payout must match revealed cells and this game\'s rules');
     assert.ok(r.prize<=available.game.maxPrize);
-    assert.equal(t.scratchPacket(r).cells.length,count);
-    assert.equal('prize' in t.scratchPacket(r),false);
-    assert.match(t.chatCardHtml(r.id,true),new RegExp('lt-scratch--'+id));
-    assert.match(t.chatCardHtml(r.id,true),/正在读票/);
-    assert.doesNotMatch(t.chatCardHtml(r.id,true),/data-lt-redeem=/);
-    const queued=t.takePendingNarration();
-    await t.autoNarrate(queued);
-    assert.match(context.lastScratchRequest,/cells/);
+    assert.equal(typeof t.chatCardHtml,'undefined');
+    assert.equal(typeof t.autoNarrate,'undefined');
     if(r.prize){
       const before=wallet.balance;
       assert.equal(t.redeem(r.id),true);
@@ -84,10 +76,6 @@ async function run(){
   assert.ok(red.face.lucky);
   assert.equal(t.snapshot().records.find(r=>r.gameId==='tenfold').face.items.every(x=>x.numbers.length===6),true);
   assert.match(t.page(),/票根册 · 6 张/);
-  if(process.env.LT_PREVIEW){
-    const cards=[...t.snapshot().records].reverse().filter(r=>!process.env.LT_PREVIEW_GAME||r.gameId===process.env.LT_PREVIEW_GAME).map(r=>t.chatCardHtml(r.id,true).replace('<details>','<details open>')).join('');
-    fs.writeFileSync(process.env.LT_PREVIEW,'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="utf-8"><title>六款票面预览</title><link rel="stylesheet" href="frontend/doodle/lottery.css"><main class="lt-page" style="width:360px;max-width:100%;margin:auto"><h1>刮开区预览</h1>'+cards+'</main>');
-  }
   for(const ticket of t.stock()){
     const bought=t.buy(ticket.game.id,ticket.serial,{id:'a1'},'extra-'+ticket.id);
     assert.equal(bought.ok,true);
@@ -126,7 +114,7 @@ async function run(){
   assert.equal(migrated.ticket.latest().id,'old-ticket','existing ticket stubs remain readable');
   assert.equal(migrated.ticket.buy('egg','',{id:'a1'},'legacy-migration').ok,true);
   assert.equal(oldWallet.luckyTickets.records.length,2,'old ticket stubs migrate into wallet storage');
-  console.log('six distinct ticket layouts, rules, payout, narration and redemption passed');
+  console.log('six distinct ticket layouts, rules, payout, private chat separation and redemption passed');
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});
 
